@@ -1,0 +1,22 @@
+*.jar
+
+config.py
+
+# macOS files
+.DS_Store
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Jupyter checkpoint files
+.ipynb_checkpoints/
+
+# Maven target directory
+target/
+
+# IntelliJ IDEA / Eclipse specific files (if using)
+.idea/
+.project
+.classpath
+.settings/
