@@ -36,23 +36,18 @@ public class TrainInfo {
         this.heading = heading;
     }
 
-    @Override
-    public String toString() {
-        return "TrainInfo{" +
-                "rn='" + rn + '\'' +
-                ", destSt='" + destSt + '\'' +
-                ", destNm='" + destNm + '\'' +
-                ", trDr='" + trDr + '\'' +
-                ", nextStaId='" + nextStaId + '\'' +
-                ", nextStpId='" + nextStpId + '\'' +
-                ", nextStaNm='" + nextStaNm + '\'' +
-                ", prdt='" + prdt + '\'' +
-                ", arrT='" + arrT + '\'' +
-                ", isApp='" + isApp + '\'' +
-                ", isDly='" + isDly + '\'' +
-                ", lat='" + lat + '\'' +
-                ", lon='" + lon + '\'' +
-                ", heading='" + heading + '\'' +
-                '}';
+    // Getters
+    public String getRn() {
+        return rn;
     }
+
+    public String getNextStpId() {
+        return nextStpId;
+    }
+
+    public String getArrT() {
+        return arrT;
+    }
+
+    // Optionally, you can add more getters for other fields if needed
 }

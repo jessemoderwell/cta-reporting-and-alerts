@@ -4,7 +4,9 @@ package com.example;
 import com.example.StringDeserializationSchema;
 import com.example.TrainInfo;
 import com.example.TrainInfoMapper;
+import com.example.ETAUpdater;
 
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
@@ -25,18 +27,19 @@ public class KafkaFlinkJob {
         // Create a Kafka consumer
         FlinkKafkaConsumer<String> consumer = new FlinkKafkaConsumer<>(
                 "train-etas",
-                new StringDeserializationSchema(), // Use the custom deserialization schema
+                new StringDeserializationSchema(),
                 properties
         );
 
-        // Add the consumer to the execution environment
-        DataStream<String> stream = env.addSource(consumer);
+        // Create an instance of ETAUpdater
+        ETAUpdater etaUpdater = new ETAUpdater();
 
-        // Process the incoming JSON data
-        DataStream<TrainInfo> processedStream = stream.flatMap(new TrainInfoMapper());
+        // Process the incoming JSON data using TrainInfoMapper
+        DataStream<TrainInfo> processedStream = env.addSource(consumer)
+            .flatMap(new TrainInfoMapper(etaUpdater));
 
-        // Write processed results to file
-        processedStream.writeAsText("/tmp/test");
+        // Write the processed results to a file
+        // processedStream.writeAsText("/tmp/test");
 
         // Execute the job
         env.execute("Kafka Flink Job");

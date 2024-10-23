@@ -1,11 +1,19 @@
 package com.example;
 
+import com.example.ETAUpdater;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.util.Collector;
 
 public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
+
+    private ETAUpdater etaUpdater;
+
+    public TrainInfoMapper(ETAUpdater etaUpdater) {
+        this.etaUpdater = etaUpdater;
+    }
 
     @Override
     public void flatMap(String value, Collector<TrainInfo> out) throws Exception {
@@ -16,24 +24,28 @@ public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
 
         // Loop through all trains and collect each one
         for (JsonNode train : trainsNode) {
-            String rn = train.path("rn").asText();
-            String destSt = train.path("destSt").asText();
-            String destNm = train.path("destNm").asText();
-            String trDr = train.path("trDr").asText();
-            String nextStaId = train.path("nextStaId").asText();
-            String nextStpId = train.path("nextStpId").asText();
-            String nextStaNm = train.path("nextStaNm").asText();
-            String prdt = train.path("prdt").asText();
-            String arrT = train.path("arrT").asText();
-            String isApp = train.path("isApp").asText();
-            String isDly = train.path("isDly").asText();
-            String lat = train.path("lat").asText();
-            String lon = train.path("lon").asText();
-            String heading = train.path("heading").asText();
+            TrainInfo trainInfo = new TrainInfo(
+                train.path("rn").asText(),
+                train.path("destSt").asText(),
+                train.path("destNm").asText(),
+                train.path("trDr").asText(),
+                train.path("nextStaId").asText(),
+                train.path("nextStpId").asText(),
+                train.path("nextStaNm").asText(),
+                train.path("prdt").asText(),
+                train.path("arrT").asText(),
+                train.path("isApp").asText(),
+                train.path("isDly").asText(),
+                train.path("lat").asText(),
+                train.path("lon").asText(),
+                train.path("heading").asText()
+            );
 
-            // Collect the TrainInfo object
-            out.collect(new TrainInfo(rn, destSt, destNm, trDr, nextStaId, nextStpId,
-                    nextStaNm, prdt, arrT, isApp, isDly, lat, lon, heading));
+            // Use ETAUpdater to update the ETA map for each train
+            etaUpdater.updateETA(trainInfo);
+
+            // Emit the updated TrainInfo object downstream
+            out.collect(trainInfo);
         }
     }
 }
