@@ -63,3 +63,20 @@ services:
     environment:
       KAFKA_BROKER_ID: ignored
       KAFKA_ZOOKEEPER_CONNECT: ignored
+
+  mysql:
+    image: mysql:8.0  # Specify the MySQL version
+    container_name: mysql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: cta-db  # Name of the database to create
+      MYSQL_USER: myuser          # MySQL user
+      MYSQL_PASSWORD: mypassword  # MySQL user password
+    ports:
+      - "3306:3306"  # Expose MySQL port
+    volumes:
+      - mysql_data:/var/lib/mysql  # Persistent volume for MySQL data
+
+volumes:
+  mysql_data:
+    driver: local
