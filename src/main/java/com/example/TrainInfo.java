@@ -49,5 +49,22 @@ public class TrainInfo {
         return arrT;
     }
 
+    public String getDestNm() {
+        return destNm;
+    }
+
+    public String getDestSt() {
+        return destSt;
+    }
+    
+    public String getNextStaNm() {
+        return nextStaNm;
+    }
+
+    public String getNextStaId() {
+        return nextStaId;
+    }
+
+
     // Optionally, you can add more getters for other fields if needed
 }
