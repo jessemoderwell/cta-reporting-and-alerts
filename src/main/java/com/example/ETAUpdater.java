@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set; 
+import java.util.List;
+import java.util.ArrayList;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,6 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.sql.Date;
+import java.sql.Timestamp;
 
 import java.time.temporal.ChronoUnit;
 
@@ -54,11 +58,13 @@ public class ETAUpdater implements Serializable {
     
 
 
-    public void recordDelay(TrainInfo trainInfo, float delayInMinutes) {
-        if (trainInfo == null) {
-            System.err.println("TrainInfo is null");
-            return;
-        }
+    public void recordDelay(String runNumber, String nextStation, Instant originalEta, Instant latestEta) {
+        String trainLine = deriveTrainLine(runNumber);
+        long delayInMinutes = ChronoUnit.MINUTES.between(originalEta, latestEta);
+        Timestamp oringalEtaTs = Timestamp.from(originalEta);
+        Timestamp latestEtaTs = Timestamp.from(latestEta);
+
+
         if (delayInMinutes < 0) {
             System.err.println("Delay in minutes is negative: " + delayInMinutes);
             return;
@@ -66,15 +72,19 @@ public class ETAUpdater implements Serializable {
     
         // Initialize the database connection
         try (Connection connection = initializeConnection()) {
-            String sql = "INSERT INTO train_delays (train_line, run_number, day, previous_station, next_station, delay_in_minutes) VALUES (?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO train_delays"
+            + "(train_line, run_number, day, previous_station, next_station, delay_in_minutes, original_eta, latest_eta)"
+            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 // Assuming you have a way to extract these details from trainInfo
-                statement.setString(1, trainInfo.getDestSt());  // Example: train line
-                statement.setString(2, trainInfo.getRn());      // Run number
+                statement.setString(1, trainLine);  // Example: train line
+                statement.setString(2, runNumber);      // Run number
                 statement.setDate(3, Date.valueOf(LocalDate.now())); // Current date
-                statement.setString(4, trainInfo.getNextStaId()); // Previous station
-                statement.setString(5, trainInfo.getNextStpId()); // Next station
-                statement.setFloat(6, delayInMinutes);          // Delay in minutes
+                statement.setString(4, null); // Previous station
+                statement.setString(5, nextStation); // Next station
+                statement.setFloat(6, delayInMinutes);  
+                statement.setTimestamp(7, oringalEtaTs);
+                statement.setTimestamp(8, latestEtaTs);        // Delay in minutes
                 statement.executeUpdate();
             }
         } catch (SQLException e) {
@@ -93,11 +103,6 @@ public void updateETA(TrainInfo trainInfo) {
     etaTimes[1] = parseETA(trainInfo.getArrT());  // Update latest ETA
     etaMap.put(key, etaTimes);
 
-    long delayInMinutes = ChronoUnit.MINUTES.between(etaTimes[0], etaTimes[1]);
-    if (delayInMinutes > 0) {
-        recordDelay(trainInfo, delayInMinutes);
-    }
-
     writeETAtoFile("/tmp/eta_output.txt");
 }
 
@@ -113,6 +118,50 @@ public void updateETA(TrainInfo trainInfo) {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void appendToLogFile(String filePath, String logData) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) { // 'true' for appending
+            writer.write(logData);
+            writer.newLine(); // Move to the next line
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void checkAndRecordDelays(Set<String> currentMessageKeys) {
+        // List to collect keys for removal
+        List<String> keysToRemove = new ArrayList<>();
+
+        // Iterate over the keys in etaMap
+        for (String key : etaMap.keySet()) {
+            // If the key is not in the current message keys, calculate the delay
+            if (!currentMessageKeys.contains(key)) {
+                Instant[] etaTimes = etaMap.get(key);
+                // long delayInMinutes = ChronoUnit.MINUTES.between(etaTimes[0], etaTimes[1]);
+                String[] parts = key.split("-");
+                String runNumber = parts[0];
+                String nextStation = parts[1];
+                // String trainLine = deriveTrainLine(runNumber);
+                
+                // Here you would call your method to record the delay
+                recordDelay(runNumber, nextStation, etaTimes[0], etaTimes[1]);
+                
+                // Add the key to the list for removal
+                keysToRemove.add(key);
+            }
+        }
+        
+    // Remove all the keys after iteration
+    for (String key : keysToRemove) {
+        etaMap.remove(key);
+    }
+
+    }
+    
+
+    private String deriveTrainLine(String runNumber) {
+        return (runNumber.startsWith("8") || runNumber.startsWith("9")) ? "Red Line" : "Unknown Line";
     }
 
     private Instant parseETA(String eta) {
