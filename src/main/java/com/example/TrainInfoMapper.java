@@ -47,7 +47,7 @@ public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
         );
 
         // Add the key to currentMessageKeys for this train
-        currentMessageKeys.add(trainInfo.getRn() + "-" + trainInfo.getNextStpId());
+        currentMessageKeys.add(trainInfo.getRn() + "-" + trainInfo.getNextStaNm());
 
         // Use ETAUpdater to update the ETA map for each train
         etaUpdater.updateETA(trainInfo);

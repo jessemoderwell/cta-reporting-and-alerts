@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set; 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -23,6 +24,8 @@ import java.time.temporal.ChronoUnit;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+
+import com.example.CtaTrainLines;
 
 public class ETAUpdater implements Serializable {
     private transient Connection connection;
@@ -60,10 +63,20 @@ public class ETAUpdater implements Serializable {
 
     public void recordDelay(String runNumber, String nextStation, Instant originalEta, Instant latestEta) {
         String trainLine = deriveTrainLine(runNumber);
-        long delayInMinutes = ChronoUnit.MINUTES.between(originalEta, latestEta);
-        Timestamp oringalEtaTs = Timestamp.from(originalEta);
-        Timestamp latestEtaTs = Timestamp.from(latestEta);
+        Integer trainDirection = getDirection(runNumber);
+        CtaTrainLines CtaTrainLine = new CtaTrainLines();
+        String[] stationOrder = CtaTrainLine.getStationOrder();
+        System.out.println(nextStation);
+        Integer nextStationIndex = Arrays.asList(stationOrder).indexOf(nextStation);
+        Integer prevStationIndex = nextStationIndex + trainDirection;
+        String prevStation = null;
+        if (prevStationIndex > -1 && prevStationIndex < stationOrder.length) {
+            prevStation = stationOrder[prevStationIndex];
+        }
 
+        long delayInMinutes = ChronoUnit.MINUTES.between(originalEta, latestEta);
+        Timestamp originalEtaTs = Timestamp.from(originalEta);
+        Timestamp latestEtaTs = Timestamp.from(latestEta);
 
         if (delayInMinutes < 0) {
             System.err.println("Delay in minutes is negative: " + delayInMinutes);
@@ -80,10 +93,10 @@ public class ETAUpdater implements Serializable {
                 statement.setString(1, trainLine);  // Example: train line
                 statement.setString(2, runNumber);      // Run number
                 statement.setDate(3, Date.valueOf(LocalDate.now())); // Current date
-                statement.setString(4, null); // Previous station
+                statement.setString(4, prevStation); // Previous station
                 statement.setString(5, nextStation); // Next station
                 statement.setFloat(6, delayInMinutes);  
-                statement.setTimestamp(7, oringalEtaTs);
+                statement.setTimestamp(7, originalEtaTs);
                 statement.setTimestamp(8, latestEtaTs);        // Delay in minutes
                 statement.executeUpdate();
             }
@@ -93,7 +106,7 @@ public class ETAUpdater implements Serializable {
     }
 
 public void updateETA(TrainInfo trainInfo) {
-    String key = trainInfo.getRn() + "-" + trainInfo.getNextStpId();
+    String key = trainInfo.getRn() + "-" + trainInfo.getNextStaNm();
     Instant[] etaTimes = etaMap.getOrDefault(key, new Instant[2]);
 
     if (etaTimes[0] == null) {
@@ -141,8 +154,8 @@ public void updateETA(TrainInfo trainInfo) {
                 // long delayInMinutes = ChronoUnit.MINUTES.between(etaTimes[0], etaTimes[1]);
                 String[] parts = key.split("-");
                 String runNumber = parts[0];
+
                 String nextStation = parts[1];
-                // String trainLine = deriveTrainLine(runNumber);
                 
                 // Here you would call your method to record the delay
                 recordDelay(runNumber, nextStation, etaTimes[0], etaTimes[1]);
@@ -162,6 +175,13 @@ public void updateETA(TrainInfo trainInfo) {
 
     private String deriveTrainLine(String runNumber) {
         return (runNumber.startsWith("8") || runNumber.startsWith("9")) ? "Red Line" : "Unknown Line";
+    }
+
+    private Integer getDirection(String runNumber) {
+        if (runNumber.startsWith("8")) {
+            return 1;
+        }
+        return -1;
     }
 
     private Instant parseETA(String eta) {
