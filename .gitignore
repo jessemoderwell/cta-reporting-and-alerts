@@ -15,6 +15,15 @@ __pycache__/
 # Maven target directory
 target/
 
+# Makefile
+Makefile
+
+# Jupyter notebook copy
+cta_reporting-Copy1.ipynb
+
+# File with names and order of cta train stops
+CtaTrainLines.java
+
 # IntelliJ IDEA / Eclipse specific files (if using)
 .idea/
 .project
