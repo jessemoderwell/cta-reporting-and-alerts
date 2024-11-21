@@ -18,6 +18,9 @@ target/
 # Makefile
 Makefile
 
+# .env
+.env
+
 # Jupyter notebook copy
 cta_reporting-Copy1.ipynb
 

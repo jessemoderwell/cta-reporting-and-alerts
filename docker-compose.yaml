@@ -64,6 +64,41 @@ services:
       KAFKA_BROKER_ID: ignored
       KAFKA_ZOOKEEPER_CONNECT: ignored
 
+  poll-api:
+    build:
+        context: ./poll-api
+    image: poll-api:latest
+    env_file:
+      - .env
+    container_name: poll-api
+    depends_on:
+      - kafka
+      - kafka-setup
+      - zookeeper
+
+
+  generate-notifications:
+    build:
+      context: ./generate-notifications
+    image: generate-notifications:latest
+    env_file:
+      - .env
+    container_name: generate-notifications
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  send-notifications:
+    build:
+      context: ./send-notifications
+    image: send-notifications:latest
+    env_file:
+      - .env
+    container_name: send-notifications
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   mysql:
     image: mysql:8.0  # Specify the MySQL version
     container_name: mysql-db
@@ -76,6 +111,12 @@ services:
       - "3306:3306"  # Expose MySQL port
     volumes:
       - mysql_data:/var/lib/mysql  # Persistent volume for MySQL data
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   mysql_data:

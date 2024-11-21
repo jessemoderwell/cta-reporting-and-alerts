@@ -70,6 +70,14 @@ public class ETAUpdater implements Serializable {
         Integer nextStationIndex = Arrays.asList(stationOrder).indexOf(nextStation);
         Integer prevStationIndex = nextStationIndex + trainDirection;
         String prevStation = null;
+        String endStation = null;
+
+        if (trainDirection == 1) {
+            endStation = stationOrder[0];
+        }
+        else if (trainDirection == -1) {
+            endStation = stationOrder[stationOrder.length - 1];
+        }
         if (prevStationIndex > -1 && prevStationIndex < stationOrder.length) {
             prevStation = stationOrder[prevStationIndex];
         }
@@ -86,8 +94,8 @@ public class ETAUpdater implements Serializable {
         // Initialize the database connection
         try (Connection connection = initializeConnection()) {
             String sql = "INSERT INTO train_delays"
-            + "(train_line, run_number, day, previous_station, next_station, delay_in_minutes, original_eta, latest_eta)"
-            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            + "(train_line, run_number, day, previous_station, next_station, end_station, delay_in_minutes, original_eta, latest_eta)"
+            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 // Assuming you have a way to extract these details from trainInfo
                 statement.setString(1, trainLine);  // Example: train line
@@ -95,9 +103,10 @@ public class ETAUpdater implements Serializable {
                 statement.setDate(3, Date.valueOf(LocalDate.now())); // Current date
                 statement.setString(4, prevStation); // Previous station
                 statement.setString(5, nextStation); // Next station
-                statement.setFloat(6, delayInMinutes);  
-                statement.setTimestamp(7, originalEtaTs);
-                statement.setTimestamp(8, latestEtaTs);        // Delay in minutes
+                statement.setString(6, endStation);
+                statement.setFloat(7, delayInMinutes);  
+                statement.setTimestamp(8, originalEtaTs);
+                statement.setTimestamp(9, latestEtaTs);        // Delay in minutes
                 statement.executeUpdate();
             }
         } catch (SQLException e) {
@@ -106,7 +115,7 @@ public class ETAUpdater implements Serializable {
     }
 
 public void updateETA(TrainInfo trainInfo) {
-    String key = trainInfo.getRn() + "-" + trainInfo.getNextStaNm();
+    String key = trainInfo.getRn() + "_" + trainInfo.getNextStaNm();
     Instant[] etaTimes = etaMap.getOrDefault(key, new Instant[2]);
 
     if (etaTimes[0] == null) {
@@ -152,7 +161,7 @@ public void updateETA(TrainInfo trainInfo) {
             if (!currentMessageKeys.contains(key)) {
                 Instant[] etaTimes = etaMap.get(key);
                 // long delayInMinutes = ChronoUnit.MINUTES.between(etaTimes[0], etaTimes[1]);
-                String[] parts = key.split("-");
+                String[] parts = key.split("_");
                 String runNumber = parts[0];
 
                 String nextStation = parts[1];
