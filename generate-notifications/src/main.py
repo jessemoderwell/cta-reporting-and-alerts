@@ -101,7 +101,7 @@ while True:
 
     mycursor = mydb.cursor()
 
-    create_new_notifications(mycursor, 1, 1)
+    create_new_notifications(mycursor, 3, 1)
 
     mydb.close()
     time.sleep(15)

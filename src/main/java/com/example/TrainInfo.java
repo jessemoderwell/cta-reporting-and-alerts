@@ -65,6 +65,10 @@ public class TrainInfo {
         return nextStaId;
     }
 
+    public String getTrDr() {
+        return trDr;
+    }
+
 
     // Optionally, you can add more getters for other fields if needed
 }
