@@ -22,6 +22,7 @@ public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
         // Parse the incoming JSON
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = objectMapper.readTree(value);
+        System.out.println(jsonNode);
         JsonNode trainsNode = jsonNode.path("ctatt").path("route").get(0).path("train");
 
     // Create a set to hold current message keys
@@ -47,8 +48,8 @@ public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
         );
 
         // Add the key to currentMessageKeys for this train
-        currentMessageKeys.add(trainInfo.getRn() + "_" + trainInfo.getNextStaNm());
-
+        currentMessageKeys.add(trainInfo.getRn() + "_" + trainInfo.getNextStaNm() + "_" + trainInfo.getTrDr());
+        // System.out.println(currentMessageKeys);
         // Use ETAUpdater to update the ETA map for each train
         etaUpdater.updateETA(trainInfo);
         
