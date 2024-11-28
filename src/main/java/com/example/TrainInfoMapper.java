@@ -52,12 +52,20 @@ public class TrainInfoMapper implements FlatMapFunction<String, TrainInfo> {
         // System.out.println(currentMessageKeys);
         // Use ETAUpdater to update the ETA map for each train
         etaUpdater.updateETA(trainInfo);
-        
-        // Emit the updated TrainInfo object downstream
-        out.collect(trainInfo);
     }
 
-    // After processing the current message, check etaMap
-    etaUpdater.checkAndRecordDelays(currentMessageKeys);
+    System.out.println(currentMessageKeys);
+    // Identify trains that disappeared and emit them for further processing
+    Set<String> disappearedKeys = etaUpdater.identifyDisappearedTrains(currentMessageKeys);
+    for (String key : disappearedKeys) {
+        TrainInfo expiredTrain = etaUpdater.getTrainInfoByKey(key); // Implement a method to retrieve train details by key
+        if (expiredTrain != null) {
+            System.out.println(key);
+            out.collect(expiredTrain); // Collect data only for disappeared trains
+        }
     }
+
+    // Clean up old entries from etaMap based on current keys
+    etaUpdater.cleanupOldEntries(currentMessageKeys);
 }
+    }

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Set; 
 import java.util.List;
 import java.util.ArrayList;
@@ -28,112 +29,71 @@ import java.time.format.DateTimeFormatter;
 import com.example.CtaTrainLines;
 
 public class ETAUpdater implements Serializable {
-    private transient Connection connection;
-    private PreparedStatement insertStatement;
-
     // HashMap to store train ETAs
-    private Map<String, Map<String, Instant[]>> etaMap;
+    private static Map<String, Map<String, Instant[]>> etaMap = new HashMap<>();
+    private Map<String, TrainInfo> trainInfoMap = new HashMap<>();
 
     public ETAUpdater() {
-        this.etaMap = new HashMap<>();
-    }
-
-    private Connection initializeConnection() {
-        try {
-            // Load the MySQL driver (optional, depending on your JDBC version)
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            
-            // Create the connection
-            return DriverManager.getConnection(
-                "jdbc:mysql://mysql:3306/mydatabase", // Use the appropriate URL
-                "myuser",    // Username
-                "mypassword" // Password
-            );
-        } catch (ClassNotFoundException e) {
-            System.err.println("MySQL JDBC Driver not found.");
-            e.printStackTrace();
-        } catch (SQLException e) {
-            System.err.println("Connection to MySQL database failed.");
-            e.printStackTrace();
-        }
-        return null; // Return null if the connection cannot be established
-    }
-    
-    public void recordDelay(String runNumber, String nextStation, String direction, Instant[] etaTimes) {
-        Instant originalEta = etaTimes[0];
-        Instant latestEta = etaTimes[1];
-        String trainLine = deriveTrainLine(runNumber);
-        Integer trainDirection = getDirection(direction);
-        CtaTrainLines CtaTrainLine = new CtaTrainLines();
-        String[] stationOrder = CtaTrainLine.getStationOrder(trainLine);
-        // System.out.println(nextStation);
-        Integer nextStationIndex = Arrays.asList(stationOrder).indexOf(nextStation);
-        Integer prevStationIndex = nextStationIndex + trainDirection;
-        String prevStation = null;
-        String endStation = null;
-
-        if (trainDirection == 1) {
-            endStation = stationOrder[0];
-        }
-        else if (trainDirection == -1) {
-            endStation = stationOrder[stationOrder.length - 1];
-        }
-        if (prevStationIndex > -1 && prevStationIndex < stationOrder.length) {
-            prevStation = stationOrder[prevStationIndex];
-        }
-
-        long delayInMinutes = ChronoUnit.MINUTES.between(originalEta, latestEta);
-        Timestamp originalEtaTs = Timestamp.from(originalEta);
-        Timestamp latestEtaTs = Timestamp.from(latestEta);
-
-        if (delayInMinutes < 0) {
-            System.err.println("Delay in minutes is negative: " + delayInMinutes);
-            return;
-        }
-    
-        // Initialize the database connection
-        try (Connection connection = initializeConnection()) {
-            String sql = "INSERT INTO train_delays"
-            + "(train_line, run_number, day, previous_station, next_station, end_station, delay_in_minutes, original_eta, latest_eta)"
-            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                // Assuming you have a way to extract these details from trainInfo
-                statement.setString(1, trainLine);  // Example: train line
-                statement.setString(2, runNumber);      // Run number
-                statement.setDate(3, Date.valueOf(LocalDate.now())); // Current date
-                statement.setString(4, prevStation); // Previous station
-                statement.setString(5, nextStation); // Next station
-                statement.setString(6, endStation);
-                statement.setFloat(7, delayInMinutes);  
-                statement.setTimestamp(8, originalEtaTs);
-                statement.setTimestamp(9, latestEtaTs);        // Delay in minutes
-                statement.executeUpdate();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
     }
 
     public void updateETA(TrainInfo trainInfo) {
         String trainLine = deriveTrainLine(trainInfo.getRn());
         String key = trainInfo.getRn() + "_" + trainInfo.getNextStaNm() + "_" + trainInfo.getTrDr();
+        // System.out.println(trainLine);
     
-        // Get the inner map for the train line or create a new one if it doesn't exist
         etaMap.putIfAbsent(trainLine, new HashMap<>());
         Map<String, Instant[]> trainLineMap = etaMap.get(trainLine);
+        // System.out.println(trainLineMap);
     
         Instant[] etaTimes = trainLineMap.getOrDefault(key, new Instant[2]);
+        // System.out.println("Current train:");
+        // System.out.println(key);
+        // System.out.println("Original eta:");
+        // System.out.println(etaTimes[0]);
+        // System.out.println("Latest eta:");
+        // System.out.println(etaTimes[1]);
     
         if (etaTimes[0] == null) {
-            etaTimes[0] = parseETA(trainInfo.getArrT());  // Set original ETA
+            etaTimes[0] = parseETA(trainInfo.getArrT());
         }
-        etaTimes[1] = parseETA(trainInfo.getArrT());  // Update latest ETA
+        etaTimes[1] = parseETA(trainInfo.getArrT());
     
-        // Put the updated array back into the inner map
         trainLineMap.put(key, etaTimes);
+    
+        // Update the trainInfoMap for later retrieval
+        trainInfoMap.put(key, trainInfo);
+
+        // System.out.println("Current state of etaMap:");
+        // System.out.println(etaMap);
     
         writeETAtoFile("/tmp/eta_output.txt");
     }
+
+    public void cleanupOldEntries(Set<String> currentMessageKeys) {
+        // Iterate through each train line's data
+            String sampleMessageKey = currentMessageKeys.iterator().next();
+            String currentTrainLine = deriveTrainLine(sampleMessageKey.split("_")[0]);
+            Map<String, Instant[]> trainLineData = etaMap.getOrDefault(currentTrainLine, new HashMap<>());
+            // System.out.println("Train line before cleaning up:");
+            // System.out.println(trainLineData);
+    
+            // Identify keys to remove
+            List<String> keysToRemove = new ArrayList<>();
+            for (String key : trainLineData.keySet()) {
+                if (!currentMessageKeys.contains(key)) {
+                    keysToRemove.add(key);
+                }
+            }
+    
+            // Remove outdated keys from etaMap and trainInfoMap
+            for (String key : keysToRemove) {
+                trainLineData.remove(key);
+                trainInfoMap.remove(key);  // Also remove from the TrainInfo map
+            }
+
+            // System.out.println("Train line after cleaning up:");
+            // System.out.println(trainLineData);
+        }
 
     // Method to write etaMap to a file
     public void writeETAtoFile(String filePath) {
@@ -154,6 +114,10 @@ public class ETAUpdater implements Serializable {
         }
     }
 
+    public TrainInfo getTrainInfoByKey(String key) {
+        return trainInfoMap.get(key); // Retrieve the stored TrainInfo object by key
+    }
+
     public void appendToLogFile(String filePath, String logData) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) { // 'true' for appending
             writer.write(logData);
@@ -163,50 +127,30 @@ public class ETAUpdater implements Serializable {
         }
     }
 
-    public void checkAndRecordDelays(Set<String> currentMessageKeys) {
-        // List to collect keys for removal
-        List<String> keysToRemove = new ArrayList<>();
-        String currentTrainLine = "";
-        if (!currentMessageKeys.isEmpty()) {
-            String sampleKey = currentMessageKeys.iterator().next();
-            currentTrainLine = deriveTrainLine(sampleKey.split("_")[0]);
-        }
-        System.out.println(currentTrainLine);
-
-        // Iterate over the keys in etaMap
-        Map<String, Instant[]> currentLineTrains = etaMap.getOrDefault(currentTrainLine, new HashMap<String, Instant[]>());
-        System.out.println(currentLineTrains);
-        System.out.println(currentMessageKeys);
-
-        for (String key : currentLineTrains.keySet()) {
-            // If the key is not in the current message keys, calculate the delay
-            if (!currentMessageKeys.contains(key)) {
-                System.out.println(key);
-                Instant[] etaTimes = currentLineTrains.get(key);
-                // long delayInMinutes = ChronoUnit.MINUTES.between(etaTimes[0], etaTimes[1]);
-                String[] parts = key.split("_");
-                String runNumber = parts[0];
-
-                String nextStation = parts[1];
-                String direction = parts[2];
-                
-                // Here you would call your method to record the delay
-                recordDelay(runNumber, nextStation, direction, etaTimes);
-                
-                // Add the key to the list for removal
-                keysToRemove.add(key);
+    public Set<String> identifyDisappearedTrains(Set<String> currentMessageKeys) {
+        Set<String> disappearedKeys = new HashSet<>();
+    
+        // Iterate through each train line's data
+        String sampleMessageKey = currentMessageKeys.iterator().next();
+        String currentTrainLine = deriveTrainLine(sampleMessageKey.split("_")[0]);
+        Map<String, Instant[]> trainLineData = etaMap.getOrDefault(currentTrainLine, new HashMap<>());
+        System.out.println(trainLineData);
+    
+            for (String key : trainLineData.keySet()) {
+                // System.out.println(key);
+                // If a key in etaMap is not in the current message, mark it as disappeared
+                if (!currentMessageKeys.contains(key)) {
+                    System.out.println("Train has disappeared from message:");
+                    System.out.println(key);
+                    disappearedKeys.add(key);
+                }
             }
-        }
         
-    // Remove all the keys after iteration
-    for (String key : keysToRemove) {
-        currentLineTrains.remove(key);
-    }
-
+        return disappearedKeys;
     }
     
 
-    private String deriveTrainLine(String runNumber) {
+    public static String deriveTrainLine(String runNumber) {
         if (runNumber.startsWith("8") || runNumber.startsWith("9")) {
             return "Red Line";
         }
@@ -222,7 +166,7 @@ public class ETAUpdater implements Serializable {
         return "Unknown Line";
     }
 
-    private Integer getDirection(String direction) {
+    public static Integer getDirection(String direction) {
         if (direction == "1") {
             return 1;
         }
@@ -236,7 +180,7 @@ public class ETAUpdater implements Serializable {
         return Instant.from(formatter.parse(eta.replaceAll("[-T:.]", "")));
     }
 
-    public Map<String, Map<String, Instant[]>> getEtaMap() {
+    public static Map<String, Map<String, Instant[]>> getEtaMap() {
         return etaMap;
     }
 }
